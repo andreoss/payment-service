@@ -10,7 +10,7 @@ import respx
 
 from app import webhook as webhook_module
 from app.models import Currency, PaymentStatus
-from app.url_safety import UnsafeWebhookURLError
+from app.url_safety import UnsafeWebhookURLError, VettedWebhookURL
 from app.webhook import send_webhook_notification
 
 WEBHOOK_URL = "https://merchant.example.com/hook"
@@ -18,7 +18,17 @@ WEBHOOK_URL = "https://merchant.example.com/hook"
 
 @pytest.fixture(autouse=True)
 def _bypass_ssrf_check():
-    with patch.object(webhook_module, "ensure_webhook_url_is_safe", AsyncMock()):
+    with patch.object(
+        webhook_module,
+        "ensure_webhook_url_is_safe",
+        AsyncMock(return_value=VettedWebhookURL(
+            original_url=WEBHOOK_URL,
+            vetted_ip="93.184.216.34",
+            port=443,
+            scheme="https",
+            hostname="merchant.example.com",
+        )),
+    ):
         yield
 
 
