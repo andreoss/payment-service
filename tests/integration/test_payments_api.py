@@ -37,7 +37,7 @@ async def test_create_and_get_payment_full_flow(api_client, idempotency_key):
     assert events[0]["event"] == f"payment.{data['status']}"
 
 
-async def test_idempotent_replay_returns_same_payment_and_ignores_new_body(
+async def test_idempotent_replay_returns_same_payment_on_identical_payload(
     api_client, idempotency_key
 ):
     first = await api_client.post(
@@ -48,7 +48,7 @@ async def test_idempotent_replay_returns_same_payment_and_ignores_new_body(
     second = await api_client.post(
         "/api/v1/payments",
         headers={"Idempotency-Key": idempotency_key},
-        json=sample_payload(amount="9999.00", currency="USD"),
+        json=sample_payload(amount="10.00"),  # identical payload
     )
 
     assert first.status_code == 202
@@ -58,6 +58,26 @@ async def test_idempotent_replay_returns_same_payment_and_ignores_new_body(
     detail = await api_client.get(f"/api/v1/payments/{first.json()['payment_id']}")
     assert detail.json()["amount"] == "10.00"
     assert detail.json()["currency"] == "RUB"
+
+
+async def test_idempotent_replay_rejects_different_payload_with_409(
+    api_client, idempotency_key
+):
+    first = await api_client.post(
+        "/api/v1/payments",
+        headers={"Idempotency-Key": idempotency_key},
+        json=sample_payload(amount="10.00"),
+    )
+    assert first.status_code == 202
+
+    second = await api_client.post(
+        "/api/v1/payments",
+        headers={"Idempotency-Key": idempotency_key},
+        json=sample_payload(amount="9999.00", currency="USD"),  # different payload
+    )
+
+    assert second.status_code == 409
+    assert "different request payload" in second.json()["detail"]
 
 
 async def test_get_unknown_payment_returns_404(api_client):
