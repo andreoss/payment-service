@@ -1,5 +1,6 @@
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
+from sqlalchemy import update
 
 from app import payment_processor
 from app.models import Payment, PaymentStatus
@@ -16,9 +17,10 @@ class _FakeSessionContext:
         return False
 
 
-def _make_session(get_return: Payment | None) -> MagicMock:
+def _make_session(get_return: Payment | None, execute_return=None) -> MagicMock:
     session = MagicMock()
     session.get = AsyncMock(return_value=get_return)
+    session.execute = AsyncMock(return_value=execute_return)
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
     return session
@@ -34,6 +36,12 @@ def _pending_payment() -> Payment:
         status=PaymentStatus.PENDING,
         webhook_url="https://example.com/hook",
     )
+
+
+def _result_mock(rowcount: int) -> MagicMock:
+    result = MagicMock()
+    result.rowcount = rowcount
+    return result
 
 
 async def test_skips_when_payment_not_found():
@@ -68,8 +76,12 @@ async def test_skips_when_not_pending():
 
 async def test_processes_pending_payment_and_sends_webhook_on_success():
     payment = _pending_payment()
-    session = _make_session(get_return=payment)
-    factory = MagicMock(return_value=_FakeSessionContext(session))
+    first_session = _make_session(get_return=payment)
+    second_session = _make_session(get_return=payment, execute_return=_result_mock(rowcount=1))
+    factory = MagicMock(side_effect=[
+        _FakeSessionContext(first_session),
+        _FakeSessionContext(second_session),
+    ])
 
     with (
         patch.object(payment_processor, "async_session_factory", factory),
@@ -82,15 +94,20 @@ async def test_processes_pending_payment_and_sends_webhook_on_success():
 
     assert payment.status == PaymentStatus.SUCCEEDED
     assert payment.processed_at is not None
-    session.commit.assert_awaited_once()
+    second_session.commit.assert_awaited_once()
+    second_session.execute.assert_awaited_once()
     webhook.assert_awaited_once_with(payment)
     assert factory.call_count == 2
 
 
 async def test_processes_pending_payment_and_marks_failed_on_simulated_gateway_error():
     payment = _pending_payment()
-    session = _make_session(get_return=payment)
-    factory = MagicMock(return_value=_FakeSessionContext(session))
+    first_session = _make_session(get_return=payment)
+    second_session = _make_session(get_return=payment, execute_return=_result_mock(rowcount=1))
+    factory = MagicMock(side_effect=[
+        _FakeSessionContext(first_session),
+        _FakeSessionContext(second_session),
+    ])
 
     with (
         patch.object(payment_processor, "async_session_factory", factory),
@@ -102,6 +119,7 @@ async def test_processes_pending_payment_and_marks_failed_on_simulated_gateway_e
         await payment_processor.process_payment(payment.id)
 
     assert payment.status == PaymentStatus.FAILED
+    second_session.execute.assert_awaited_once()
     webhook.assert_awaited_once_with(payment)
 
 
@@ -110,10 +128,11 @@ async def test_skips_update_when_state_changed_during_simulated_processing():
     first_session = _make_session(get_return=payment)
     already_processed = _pending_payment()
     already_processed.status = PaymentStatus.SUCCEEDED
-    second_session = _make_session(get_return=already_processed)
-    factory = MagicMock(
-        side_effect=[_FakeSessionContext(first_session), _FakeSessionContext(second_session)]
-    )
+    second_session = _make_session(get_return=already_processed, execute_return=_result_mock(rowcount=0))
+    factory = MagicMock(side_effect=[
+        _FakeSessionContext(first_session),
+        _FakeSessionContext(second_session),
+    ])
 
     with (
         patch.object(payment_processor, "async_session_factory", factory),
@@ -124,5 +143,6 @@ async def test_skips_update_when_state_changed_during_simulated_processing():
     ):
         await payment_processor.process_payment(payment.id)
 
+    second_session.execute.assert_awaited_once()
     second_session.commit.assert_not_called()
     webhook.assert_not_called()
