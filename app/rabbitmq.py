@@ -17,9 +17,6 @@ class RabbitPublisher:
     def __init__(self, url: str):
         self._url = url
         self._connection: AbstractRobustConnection | None = None
-        # aio-pika types AbstractRobustConnection.channel() as returning the
-        # base AbstractChannel; we only rely on the base interface here, so
-        # no need to assert the (accurate, but unstated) robust subtype.
         self._channel: AbstractChannel | None = None
 
     async def connect(self) -> None:

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from app.config import settings
 from app.db import Base
-from app.models import OutboxEvent, Payment  # noqa: F401  (register models on Base.metadata)
+from app.models import OutboxEvent, Payment  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)

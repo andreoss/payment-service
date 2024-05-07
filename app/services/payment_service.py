@@ -30,7 +30,6 @@ class PaymentService:
         try:
             await self.session.flush()
         except IntegrityError:
-            # Concurrent request created the same idempotency key first.
             await self.session.rollback()
             existing = await self._get_by_idempotency_key(idempotency_key)
             if existing is not None:

@@ -16,7 +16,6 @@ async def test_poison_message_retries_then_lands_in_dlq():
         headers={"x-attempt": 1},
     )
 
-    # 3 attempts with 2s/4s backoff between them: allow generous headroom.
     deadline = 25.0
     elapsed = 0.0
     after = before

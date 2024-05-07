@@ -22,8 +22,6 @@ router = APIRouter(
 )
 async def create_payment(
     body: PaymentCreateRequest,
-    # max_length mirrors payments.idempotency_key's `String(255)` column, so
-    # an oversized key is a 422 instead of a DB error at insert time.
     idempotency_key: str = Header(alias="Idempotency-Key", max_length=255),
     session: AsyncSession = Depends(get_db_session),
 ) -> PaymentCreateResponse:

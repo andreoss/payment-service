@@ -31,7 +31,6 @@ async def process_payment(payment_id: uuid.UUID) -> None:
             )
             return
 
-    # Simulate the external gateway call without holding a DB connection idle.
     delay = random.uniform(
         settings.payment_min_processing_seconds, settings.payment_max_processing_seconds
     )

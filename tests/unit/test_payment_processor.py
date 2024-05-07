@@ -47,7 +47,7 @@ async def test_skips_when_payment_not_found():
         await payment_processor.process_payment(uuid.uuid4())
 
     webhook.assert_not_called()
-    factory.assert_called_once()  # only the initial pending-check, no second lookup
+    factory.assert_called_once()
 
 
 async def test_skips_when_not_pending():
@@ -84,7 +84,7 @@ async def test_processes_pending_payment_and_sends_webhook_on_success():
     assert payment.processed_at is not None
     session.commit.assert_awaited_once()
     webhook.assert_awaited_once_with(payment)
-    assert factory.call_count == 2  # pending-check + post-processing update
+    assert factory.call_count == 2
 
 
 async def test_processes_pending_payment_and_marks_failed_on_simulated_gateway_error():

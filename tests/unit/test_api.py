@@ -14,9 +14,6 @@ API_KEY_HEADERS = {"X-API-Key": "changeme"}
 
 
 def _fake_payment(**overrides) -> Payment:
-    # mapped_column(default=...) only applies at flush time, not on plain
-    # construction, so status/created_at must be set explicitly for a
-    # Payment built without ever hitting a real session.
     payment = Payment(
         id=uuid.uuid4(),
         idempotency_key="key-1",

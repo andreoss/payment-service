@@ -5,9 +5,6 @@ from typing import Literal
 @dataclass(frozen=True)
 class RetryDecision:
     action: Literal["retry", "dlq"]
-    # Only meaningful when action == "retry" (the attempt number the
-    # redelivered message should carry). For "dlq" this just echoes the
-    # attempt that exhausted the budget, for logging purposes.
     next_attempt: int
     delay_ms: int | None = None
 

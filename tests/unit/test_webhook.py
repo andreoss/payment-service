@@ -50,7 +50,6 @@ async def test_retries_on_server_error_then_succeeds():
 async def test_gives_up_after_max_attempts_without_raising():
     route = respx.post(WEBHOOK_URL).mock(return_value=httpx.Response(503))
 
-    # Must not raise: a dead webhook must never affect the payment record.
     await send_webhook_notification(_fake_payment())
 
     assert route.call_count == 3
