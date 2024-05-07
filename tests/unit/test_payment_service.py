@@ -1,6 +1,8 @@
 import uuid
+from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,25 +14,29 @@ from app.services.payment_service import PaymentService
 from app.url_safety import UnsafeWebhookURLError
 
 
-def _create_request() -> PaymentCreateRequest:
-    return PaymentCreateRequest(
-        amount="99.99",
-        currency="USD",
-        description="desc",
-        metadata={"k": "v"},
-        webhook_url="https://example.com/hook",
-    )
+def _create_request(**overrides) -> PaymentCreateRequest:
+    base = {
+        "amount": "99.99",
+        "currency": "USD",
+        "description": "desc",
+        "metadata": {"k": "v"},
+        "webhook_url": "https://example.com/hook",
+    }
+    base.update(overrides)
+    return PaymentCreateRequest(**base)
 
 
-def _existing_payment(idempotency_key: str) -> Payment:
-    return Payment(
-        id=uuid.uuid4(),
-        idempotency_key=idempotency_key,
-        amount="1.00",
-        currency=Currency.USD,
-        payment_metadata={},
-        webhook_url="https://example.com/hook",
-    )
+def _existing_payment(idempotency_key: str, **overrides) -> Payment:
+    base = {
+        "id": uuid.uuid4(),
+        "idempotency_key": idempotency_key,
+        "amount": "1.00",
+        "currency": Currency.USD,
+        "payment_metadata": {},
+        "webhook_url": "https://example.com/hook",
+    }
+    base.update(overrides)
+    return Payment(**base)
 
 
 def _mock_session(lookup_result) -> MagicMock:
@@ -45,12 +51,27 @@ def _mock_session(lookup_result) -> MagicMock:
 
 
 async def test_create_payment_returns_existing_payment_for_known_idempotency_key():
-    existing = _existing_payment("key-1")
+    existing = _existing_payment("key-1", amount="99.99")  # payload matches request
     session = _mock_session(existing)
 
     result = await PaymentService(session).create_payment("key-1", _create_request())
 
     assert result is existing
+    session.add.assert_not_called()
+    session.commit.assert_not_called()
+
+
+async def test_create_payment_returns_409_on_payload_mismatch():
+    existing = _existing_payment("key-1", amount="1.00")  # payload differs from request
+    session = _mock_session(existing)
+
+    try:
+        await PaymentService(session).create_payment("key-1", _create_request(amount="99.99"))
+        raise AssertionError("expected HTTPException 409")
+    except HTTPException as exc:
+        assert exc.status_code == 409
+        assert "different request payload" in exc.detail
+
     session.add.assert_not_called()
     session.commit.assert_not_called()
 
@@ -77,7 +98,7 @@ async def test_create_payment_persists_payment_and_outbox_event_for_new_key():
 
 
 async def test_create_payment_recovers_from_concurrent_insert_race():
-    existing = _existing_payment("key-3")
+    existing = _existing_payment("key-3", amount="99.99")  # payload matches request
 
     session = MagicMock(spec=AsyncSession)
     miss = MagicMock()
