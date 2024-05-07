@@ -10,11 +10,7 @@ class RetryDecision:
 
 
 def decide(attempt: int, max_attempts: int, base_delay_ms: int) -> RetryDecision:
-    """Decides what to do with a message whose processing just failed.
-
-    `attempt` is the attempt that just failed (1-indexed). Delay grows
-    exponentially per retry: base, base*2, base*4, ...
-    """
+    """Decides retry vs DLQ for a failed message; delay grows exponentially (base, base*2, base*4, ...)."""
     if attempt >= max_attempts:
         return RetryDecision(action="dlq", next_attempt=attempt)
 

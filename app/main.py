@@ -52,10 +52,7 @@ _received_webhooks: list[dict] = []
 
 @debug_router.post("/webhook-echo")
 async def webhook_echo(request: Request) -> dict:
-    """Local-only stand-in webhook receiver, so the full flow can be
-    exercised without an external HTTP endpoint. Not part of the payments
-    API surface and not protected by X-API-Key, mirroring a real merchant
-    endpoint that this service calls out to."""
+    """Local stand-in webhook receiver, unauthenticated like a real merchant endpoint."""
     payload = await request.json()
     logger.info("webhook-echo received: %s", payload)
     _received_webhooks.append(payload)

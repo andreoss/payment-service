@@ -14,11 +14,7 @@ ROUTING_DLQ = "payment.new.dlq"
 
 
 async def declare_topology(url: str) -> None:
-    """Idempotently declares the full payments exchange/queue topology.
-
-    payments.new -> (on failure) payments.new.retry (per-message TTL) -> dead-lettered
-    back into payments.new for redelivery -> after max attempts, routed to payments.new.dlq.
-    """
+    """Idempotently declares the topology: new -> retry (TTL) -> back to new -> DLQ after max attempts."""
     connection = await aio_pika.connect_robust(url)
     try:
         channel = await connection.channel()

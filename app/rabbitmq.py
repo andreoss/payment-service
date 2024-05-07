@@ -7,12 +7,8 @@ from aio_pika.abc import AbstractChannel, AbstractRobustConnection
 
 
 class RabbitPublisher:
-    """Thin wrapper around a robust aio-pika channel with publisher confirms.
-
-    Used for every outbound publish in the system (outbox relay, consumer
-    retry/DLQ routing) so delivery can be confirmed before the caller commits
-    to having "sent" a message.
-    """
+    """Thin aio-pika wrapper with publisher confirms, used for every outbound
+    publish so delivery is confirmed before the caller treats it as sent."""
 
     def __init__(self, url: str):
         self._url = url

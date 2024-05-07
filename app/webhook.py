@@ -41,12 +41,8 @@ async def _post_webhook(url: str, payload: dict) -> httpx.Response:
 async def send_webhook_notification(payment: Payment) -> None:
     """Delivers the payment result to the client's webhook URL.
 
-    Retries transient failures (network errors, 5xx, 429) up to
-    settings.webhook_max_attempts times with exponential backoff. A
-    permanent failure (whether exhausted retries or a non-retryable 4xx) is
-    logged but never raised: the payment record is already the durable
-    source of truth, so a webhook outage must not trigger reprocessing of
-    the payment itself.
+    Retries transient failures with backoff; permanent failures are logged,
+    never raised, since the payment record is the durable source of truth.
     """
     payload = {
         "event": f"payment.{payment.status.value}",

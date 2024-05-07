@@ -15,25 +15,13 @@ logger = logging.getLogger(__name__)
 
 
 class OutboxRelay:
-    """Polls the outbox table and reliably publishes pending events to RabbitMQ.
+    """Polls the outbox table and publishes pending events to RabbitMQ.
 
-    Runs as a background asyncio task inside the API process. Uses
-    SELECT ... FOR UPDATE SKIP LOCKED so multiple replicas could run this
-    concurrently without double-publishing. A row is only marked published
-    after the broker publish call returns (publisher confirms are enabled),
-    so a crash between publish and commit can cause an at-most-once extra
-    redelivery, which the consumer handles idempotently.
-
-    A whole batch is committed as one transaction. If publishing fails partway
-    through a batch, every row in it - including ones already published to
-    RabbitMQ earlier in the same loop iteration - stays unmarked and gets
-    republished on the next tick. This is deliberate: committing per-row would
-    release the FOR UPDATE lock on the rest of the batch after the first row,
-    letting a second relay replica pick up rows this instance already has in
-    memory, reintroducing the double-publish race SKIP LOCKED exists to
-    prevent. The batch is kept small (`outbox_batch_size`) to bound how much
-    redundant (but harmless, since processing is idempotent) republishing a
-    partial failure can cause.
+    Uses SELECT ... FOR UPDATE SKIP LOCKED so multiple replicas can run
+    concurrently without double-publishing. A batch commits as one
+    transaction: committing per-row instead would release the lock mid-batch
+    and let another replica double-publish, so a partial failure republishes
+    the whole (small, `outbox_batch_size`) batch instead.
     """
 
     def __init__(self, publisher: RabbitPublisher):

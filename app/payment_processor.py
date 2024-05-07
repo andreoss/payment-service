@@ -13,13 +13,9 @@ logger = logging.getLogger(__name__)
 
 
 async def process_payment(payment_id: uuid.UUID) -> None:
-    """Emulates a call to an external payment gateway and notifies via webhook.
-
-    Idempotent: if the payment has already left the `pending` state (e.g. a
-    redelivered message after a broker/consumer crash), processing is
-    skipped so the gateway is never charged twice. The webhook is only
-    fired for the emulated call made in *this* invocation.
-    """
+    """Emulates a gateway call and notifies via webhook; idempotent, skips
+    if the payment already left `pending` (e.g. a redelivered message) so
+    the gateway is never charged twice."""
     async with async_session_factory() as session:
         payment = await session.get(Payment, payment_id)
         if payment is None:
