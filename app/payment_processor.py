@@ -1,0 +1,52 @@
+import asyncio
+import logging
+import random
+import uuid
+from datetime import datetime, timezone
+
+from app.config import settings
+from app.db import async_session_factory
+from app.models import Payment, PaymentStatus
+from app.webhook import send_webhook_notification
+
+logger = logging.getLogger(__name__)
+
+
+async def process_payment(payment_id: uuid.UUID) -> None:
+    """Emulates a call to an external payment gateway and notifies via webhook.
+
+    Idempotent: if the payment has already left the `pending` state (e.g. a
+    redelivered message after a broker/consumer crash), processing is
+    skipped so the gateway is never charged twice. The webhook is only
+    fired for the emulated call made in *this* invocation.
+    """
+    async with async_session_factory() as session:
+        payment = await session.get(Payment, payment_id)
+        if payment is None:
+            logger.warning("Payment %s not found, skipping", payment_id)
+            return
+        if payment.status != PaymentStatus.PENDING:
+            logger.info(
+                "Payment %s already processed (status=%s), skipping", payment_id, payment.status
+            )
+            return
+
+    # Simulate the external gateway call without holding a DB connection idle.
+    delay = random.uniform(
+        settings.payment_min_processing_seconds, settings.payment_max_processing_seconds
+    )
+    await asyncio.sleep(delay)
+    succeeded = random.random() >= settings.payment_failure_rate
+
+    async with async_session_factory() as session:
+        payment = await session.get(Payment, payment_id)
+        if payment is None or payment.status != PaymentStatus.PENDING:
+            logger.info("Payment %s state changed during processing, skipping update", payment_id)
+            return
+
+        payment.status = PaymentStatus.SUCCEEDED if succeeded else PaymentStatus.FAILED
+        payment.processed_at = datetime.now(timezone.utc)
+        await session.commit()
+        await session.refresh(payment)
+
+    await send_webhook_notification(payment)
