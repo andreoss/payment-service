@@ -60,10 +60,8 @@ async def on_shutdown() -> None:
     logger.info("Consumer shut down complete")
 
 
-# Handler exceptions are caught here rather than propagated so the broker
-# always ACKs the original delivery; retry/DLQ routing below is explicit.
-# Letting exceptions escape would make FastStream requeue immediately,
-# hot-looping a poison message with no backoff and no attempt counting.
+# Catch exceptions so broker ACKs; retry/DLQ routing is explicit.
+# Letting exceptions escape causes immediate requeue without backoff.
 @broker.subscriber(new_queue, main_exchange)
 async def handle_new_payment(body: dict, message: RabbitMessage) -> None:
     # x-attempt is stamped by the outbox relay (1) and by each retry publish.

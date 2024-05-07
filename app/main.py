@@ -49,7 +49,6 @@ class CorrelationIdMiddleware:
         request = Request(scope, receive)
         correlation_id = request.headers.get("x-correlation-id", str(uuid.uuid4()))
 
-        # Add correlation ID to response headers
         async def send_with_correlation(message):
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
@@ -57,7 +56,6 @@ class CorrelationIdMiddleware:
                 message["headers"] = headers
             await send(message)
 
-        # Set correlation ID in context variable (async-safe)
         token = correlation_id_var.set(correlation_id)
         try:
             await self.app(scope, receive, send_with_correlation)
@@ -113,7 +111,6 @@ async def _check_rabbitmq(publisher: RabbitPublisher) -> bool:
     try:
         if publisher._channel is None or publisher._channel.is_closed:
             return False
-        # Channel is open; no need to create temporary exchange
         return True
     except Exception:
         logger.exception("RabbitMQ health check failed")
@@ -134,10 +131,7 @@ async def health() -> dict:
 
 debug_router = APIRouter(prefix="/api/v1/_debug", tags=["debug"])
 
-# Local-only stand-in for a merchant webhook receiver so the full delivery
-# path can be exercised without external infrastructure. Deliberately
-# unauthenticated (like a real merchant endpoint) and therefore mounted only
-# when DEBUG_ENDPOINTS_ENABLED=true — never in production.
+# Local unauthenticated webhook receiver for testing. Never enable in production.
 _received_webhooks: deque[dict] = deque(maxlen=1000)
 
 
