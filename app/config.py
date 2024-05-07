@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+import warnings
 
 
 class Settings(BaseSettings):
@@ -17,12 +18,29 @@ class Settings(BaseSettings):
 
     webhook_timeout_seconds: float = 5.0
     webhook_max_attempts: int = 3
+    # Empty disables the X-Webhook-Signature HMAC header entirely.
+    webhook_signing_key: str = ""
     webhook_allow_private_hosts: bool = False
 
     debug_endpoints_enabled: bool = False
 
     consumer_max_attempts: int = 3
     consumer_retry_base_delay_ms: int = 2000
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if self.api_key == "changeme" and not self.debug_endpoints_enabled:
+            warnings.warn(
+                "API_KEY is set to default 'changeme' — change it in production!",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        if not self.webhook_signing_key and not self.debug_endpoints_enabled:
+            warnings.warn(
+                "WEBHOOK_SIGNING_KEY is empty — webhook signatures disabled in production!",
+                RuntimeWarning,
+                stacklevel=2,
+            )
 
 
 settings = Settings()
