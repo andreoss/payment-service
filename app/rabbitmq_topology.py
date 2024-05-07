@@ -14,7 +14,14 @@ ROUTING_DLQ = "payment.new.dlq"
 
 
 async def declare_topology(url: str) -> None:
-    """Idempotently declares the topology: new -> retry (TTL) -> back to new -> DLQ after max attempts."""
+    """Idempotently declares the routing topology.
+
+    Layout: payments.new consumes fresh messages; a failed message is
+    republished to payments.new.retry — a per-message-TTL queue whose
+    dead-letter exchange routes expired messages back to payments.new,
+    giving delayed retries without blocking the main queue. After the last
+    attempt the message is published to the DLQ exchange for inspection.
+    """
     connection = await aio_pika.connect_robust(url)
     try:
         channel = await connection.channel()
@@ -29,7 +36,14 @@ async def declare_topology(url: str) -> None:
             EXCHANGE_DLQ, aio_pika.ExchangeType.DIRECT, durable=True
         )
 
-        new_queue = await channel.declare_queue(QUEUE_NEW, durable=True)
+        new_queue = await channel.declare_queue(
+            QUEUE_NEW,
+            durable=True,
+            arguments={
+                "x-dead-letter-exchange": EXCHANGE_DLQ,
+                "x-dead-letter-routing-key": ROUTING_DLQ,
+            },
+        )
         await new_queue.bind(main_exchange, routing_key=ROUTING_NEW)
 
         retry_queue = await channel.declare_queue(
