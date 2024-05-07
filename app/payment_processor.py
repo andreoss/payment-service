@@ -4,6 +4,8 @@ import random
 import uuid
 from datetime import UTC, datetime
 
+from sqlalchemy import update
+
 from app.config import settings
 from app.db import async_session_factory
 from app.models import Payment, PaymentStatus
@@ -32,16 +34,20 @@ async def process_payment(payment_id: uuid.UUID) -> None:
     )
     await asyncio.sleep(delay)
     succeeded = random.random() >= settings.payment_failure_rate
+    new_status = PaymentStatus.SUCCEEDED if succeeded else PaymentStatus.FAILED
+    processed_at = datetime.now(UTC)
 
     async with async_session_factory() as session:
-        payment = await session.get(Payment, payment_id)
-        if payment is None or payment.status != PaymentStatus.PENDING:
+        result = await session.execute(
+            update(Payment)
+            .where(Payment.id == payment_id, Payment.status == PaymentStatus.PENDING)
+            .values(status=new_status, processed_at=processed_at)
+        )
+        if result.rowcount == 0:
             logger.info("Payment %s state changed during processing, skipping update", payment_id)
             return
-
-        payment.status = PaymentStatus.SUCCEEDED if succeeded else PaymentStatus.FAILED
-        payment.processed_at = datetime.now(UTC)
         await session.commit()
-        await session.refresh(payment)
+
+        payment = await session.get(Payment, payment_id)
 
     await send_webhook_notification(payment)
