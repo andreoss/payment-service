@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.models import Currency, OutboxEvent, Payment
 from app.schemas import PaymentCreateRequest
 from app.services import payment_service as payment_service_module
@@ -114,11 +115,14 @@ async def test_create_payment_rejects_unsafe_webhook_url_and_does_not_persist():
         amount="10.00", currency="USD", webhook_url="http://127.0.0.1/hook"
     )
 
-    try:
-        await PaymentService(session).create_payment("key-5", request)
-        raise AssertionError("expected UnsafeWebhookURLError")
-    except UnsafeWebhookURLError:
-        pass
+    # Local/dev and the integration CI job set WEBHOOK_ALLOW_PRIVATE_HOSTS=true
+    # via .env; force it off here so this exercises the real check.
+    with patch.object(settings, "webhook_allow_private_hosts", False):
+        try:
+            await PaymentService(session).create_payment("key-5", request)
+            raise AssertionError("expected UnsafeWebhookURLError")
+        except UnsafeWebhookURLError:
+            pass
 
     session.add.assert_not_called()
     session.commit.assert_not_called()

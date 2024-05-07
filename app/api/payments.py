@@ -29,7 +29,9 @@ async def create_payment(
     try:
         payment = await PaymentService(session).create_payment(idempotency_key, body)
     except UnsafeWebhookURLError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     return PaymentCreateResponse(
         payment_id=payment.id,
         status=payment.status,

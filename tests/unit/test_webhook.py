@@ -88,7 +88,9 @@ async def test_skips_delivery_when_url_is_unsafe():
     route = respx.post(WEBHOOK_URL).mock(return_value=httpx.Response(200))
 
     with patch.object(
-        webhook_module, "ensure_webhook_url_is_safe", AsyncMock(side_effect=UnsafeWebhookURLError("x"))
+        webhook_module,
+        "ensure_webhook_url_is_safe",
+        AsyncMock(side_effect=UnsafeWebhookURLError("x")),
     ):
         await send_webhook_notification(_fake_payment())
 

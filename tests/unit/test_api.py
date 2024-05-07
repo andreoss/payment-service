@@ -6,12 +6,17 @@ import httpx
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.db import get_db_session
-from app.main import app
+from app.main import app, debug_router
 from app.models import Currency, Payment, PaymentStatus
 from app.services import payment_service as payment_service_module
 
 API_KEY_HEADERS = {"X-API-Key": "changeme"}
+
+# The debug router is only auto-mounted when DEBUG_ENDPOINTS_ENABLED is set;
+# include it explicitly here so its behavior is testable regardless of env.
+app.include_router(debug_router)
 
 
 def _fake_payment(**overrides) -> Payment:
@@ -101,16 +106,19 @@ async def test_create_payment_rejects_webhook_url_targeting_internal_host(
     result.scalar_one_or_none.return_value = None
     session.execute = AsyncMock(return_value=result)
 
-    async with client:
-        resp = await client.post(
-            "/api/v1/payments",
-            headers={**API_KEY_HEADERS, "Idempotency-Key": "test-key-ssrf"},
-            json={
-                "amount": "10.00",
-                "currency": "USD",
-                "webhook_url": "http://127.0.0.1/hook",
-            },
-        )
+    # Local/dev and the integration CI job set WEBHOOK_ALLOW_PRIVATE_HOSTS=true
+    # via .env; force it off here so this exercises the real check.
+    with patch.object(settings, "webhook_allow_private_hosts", False):
+        async with client:
+            resp = await client.post(
+                "/api/v1/payments",
+                headers={**API_KEY_HEADERS, "Idempotency-Key": "test-key-ssrf"},
+                json={
+                    "amount": "10.00",
+                    "currency": "USD",
+                    "webhook_url": "http://127.0.0.1/hook",
+                },
+            )
 
     assert resp.status_code == 422
     session.add.assert_not_called()

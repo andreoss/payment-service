@@ -6,6 +6,14 @@ from app.config import settings
 from app.url_safety import UnsafeWebhookURLError, ensure_webhook_url_is_safe
 
 
+@pytest.fixture(autouse=True)
+def _private_hosts_disallowed():
+    # Local/dev and the integration CI job set WEBHOOK_ALLOW_PRIVATE_HOSTS=true
+    # via .env; force it off here so these tests exercise the real check.
+    with patch.object(settings, "webhook_allow_private_hosts", False):
+        yield
+
+
 async def test_rejects_non_http_scheme():
     with pytest.raises(UnsafeWebhookURLError):
         await ensure_webhook_url_is_safe("ftp://example.com/hook")

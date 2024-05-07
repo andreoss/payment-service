@@ -28,7 +28,9 @@ async def ensure_webhook_url_is_safe(url: str) -> None:
     server-side request to internal/private infrastructure (SSRF)."""
     parts = urlsplit(url)
     if parts.scheme not in ("http", "https"):
-        raise UnsafeWebhookURLError(f"webhook_url scheme must be http or https, got {parts.scheme!r}")
+        raise UnsafeWebhookURLError(
+            f"webhook_url scheme must be http or https, got {parts.scheme!r}"
+        )
     if not parts.hostname:
         raise UnsafeWebhookURLError("webhook_url is missing a hostname")
 
@@ -41,7 +43,9 @@ async def ensure_webhook_url_is_safe(url: str) -> None:
             parts.hostname, port, type=socket.SOCK_STREAM
         )
     except socket.gaierror as exc:
-        raise UnsafeWebhookURLError(f"webhook_url host could not be resolved: {parts.hostname}") from exc
+        raise UnsafeWebhookURLError(
+            f"webhook_url host could not be resolved: {parts.hostname}"
+        ) from exc
 
     for *_rest, sockaddr in infos:
         ip = ipaddress.ip_address(sockaddr[0])
