@@ -7,6 +7,7 @@ from app.api.deps import verify_api_key
 from app.db import get_db_session
 from app.schemas import PaymentCreateRequest, PaymentCreateResponse, PaymentDetailResponse
 from app.services.payment_service import PaymentService
+from app.url_safety import UnsafeWebhookURLError
 
 router = APIRouter(
     prefix="/api/v1/payments",
@@ -25,7 +26,10 @@ async def create_payment(
     idempotency_key: str = Header(alias="Idempotency-Key", max_length=255),
     session: AsyncSession = Depends(get_db_session),
 ) -> PaymentCreateResponse:
-    payment = await PaymentService(session).create_payment(idempotency_key, body)
+    try:
+        payment = await PaymentService(session).create_payment(idempotency_key, body)
+    except UnsafeWebhookURLError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return PaymentCreateResponse(
         payment_id=payment.id,
         status=payment.status,

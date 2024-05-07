@@ -1,6 +1,6 @@
 import uuid
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_db_session
 from app.main import app
 from app.models import Currency, Payment, PaymentStatus
+from app.services import payment_service as payment_service_module
 
 API_KEY_HEADERS = {"X-API-Key": "changeme"}
 
@@ -74,21 +75,45 @@ async def test_create_payment_returns_202_with_pending_status(client_with_fake_s
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
 
-    async with client:
-        resp = await client.post(
-            "/api/v1/payments",
-            headers={**API_KEY_HEADERS, "Idempotency-Key": "test-key"},
-            json={
-                "amount": "10.00",
-                "currency": "USD",
-                "webhook_url": "https://example.com/hook",
-            },
-        )
+    with patch.object(payment_service_module, "ensure_webhook_url_is_safe", AsyncMock()):
+        async with client:
+            resp = await client.post(
+                "/api/v1/payments",
+                headers={**API_KEY_HEADERS, "Idempotency-Key": "test-key"},
+                json={
+                    "amount": "10.00",
+                    "currency": "USD",
+                    "webhook_url": "https://example.com/hook",
+                },
+            )
 
     assert resp.status_code == 202
     body = resp.json()
     assert body["status"] == "pending"
     assert "payment_id" in body
+
+
+async def test_create_payment_rejects_webhook_url_targeting_internal_host(
+    client_with_fake_session,
+):
+    client, session = client_with_fake_session
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = None
+    session.execute = AsyncMock(return_value=result)
+
+    async with client:
+        resp = await client.post(
+            "/api/v1/payments",
+            headers={**API_KEY_HEADERS, "Idempotency-Key": "test-key-ssrf"},
+            json={
+                "amount": "10.00",
+                "currency": "USD",
+                "webhook_url": "http://127.0.0.1/hook",
+            },
+        )
+
+    assert resp.status_code == 422
+    session.add.assert_not_called()
 
 
 async def test_get_payment_returns_404_when_missing(client_with_fake_session):

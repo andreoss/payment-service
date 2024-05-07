@@ -1,4 +1,5 @@
 import logging
+from collections import deque
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -47,7 +48,7 @@ async def health() -> dict:
 
 debug_router = APIRouter(prefix="/api/v1/_debug", tags=["debug"])
 
-_received_webhooks: list[dict] = []
+_received_webhooks: deque[dict] = deque(maxlen=1000)
 
 
 @debug_router.post("/webhook-echo")
@@ -63,8 +64,9 @@ async def webhook_echo(request: Request) -> dict:
 async def webhook_events(payment_id: str | None = None) -> list[dict]:
     """Returns everything webhook-echo has received, for local/test inspection."""
     if payment_id is None:
-        return _received_webhooks
+        return list(_received_webhooks)
     return [event for event in _received_webhooks if event.get("payment_id") == payment_id]
 
 
-app.include_router(debug_router)
+if settings.debug_endpoints_enabled:
+    app.include_router(debug_router)

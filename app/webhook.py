@@ -11,6 +11,7 @@ from tenacity import (
 
 from app.config import settings
 from app.models import Payment
+from app.url_safety import UnsafeWebhookURLError, ensure_webhook_url_is_safe
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,15 @@ async def send_webhook_notification(payment: Payment) -> None:
     Retries transient failures with backoff; permanent failures are logged,
     never raised, since the payment record is the durable source of truth.
     """
+    try:
+        await ensure_webhook_url_is_safe(payment.webhook_url)
+    except UnsafeWebhookURLError:
+        logger.error(
+            "Refusing to deliver webhook for payment %s: URL is not a permitted destination",
+            payment.id,
+        )
+        return
+
     payload = {
         "event": f"payment.{payment.status.value}",
         "payment_id": str(payment.id),

@@ -2,14 +2,24 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 import httpx
+import pytest
 import respx
 
+from app import webhook as webhook_module
 from app.models import Currency, PaymentStatus
+from app.url_safety import UnsafeWebhookURLError
 from app.webhook import send_webhook_notification
 
 WEBHOOK_URL = "https://merchant.example.com/hook"
+
+
+@pytest.fixture(autouse=True)
+def _bypass_ssrf_check():
+    with patch.object(webhook_module, "ensure_webhook_url_is_safe", AsyncMock()):
+        yield
 
 
 def _fake_payment(**overrides) -> SimpleNamespace:
@@ -71,3 +81,15 @@ async def test_retries_on_network_error():
     await send_webhook_notification(_fake_payment())
 
     assert route.call_count == 3
+
+
+@respx.mock
+async def test_skips_delivery_when_url_is_unsafe():
+    route = respx.post(WEBHOOK_URL).mock(return_value=httpx.Response(200))
+
+    with patch.object(
+        webhook_module, "ensure_webhook_url_is_safe", AsyncMock(side_effect=UnsafeWebhookURLError("x"))
+    ):
+        await send_webhook_notification(_fake_payment())
+
+    assert route.call_count == 0

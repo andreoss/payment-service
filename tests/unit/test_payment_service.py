@@ -1,12 +1,14 @@
 import uuid
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Currency, OutboxEvent, Payment
 from app.schemas import PaymentCreateRequest
+from app.services import payment_service as payment_service_module
 from app.services.payment_service import PaymentService
+from app.url_safety import UnsafeWebhookURLError
 
 
 def _create_request() -> PaymentCreateRequest:
@@ -55,7 +57,8 @@ async def test_create_payment_returns_existing_payment_for_known_idempotency_key
 async def test_create_payment_persists_payment_and_outbox_event_for_new_key():
     session = _mock_session(None)
 
-    payment = await PaymentService(session).create_payment("key-2", _create_request())
+    with patch.object(payment_service_module, "ensure_webhook_url_is_safe", AsyncMock()):
+        payment = await PaymentService(session).create_payment("key-2", _create_request())
 
     assert session.add.call_count == 2
     added = [call.args[0] for call in session.add.call_args_list]
@@ -86,7 +89,8 @@ async def test_create_payment_recovers_from_concurrent_insert_race():
     session.commit = AsyncMock()
     session.refresh = AsyncMock()
 
-    result = await PaymentService(session).create_payment("key-3", _create_request())
+    with patch.object(payment_service_module, "ensure_webhook_url_is_safe", AsyncMock()):
+        result = await PaymentService(session).create_payment("key-3", _create_request())
 
     assert result is existing
     session.rollback.assert_awaited_once()
@@ -102,3 +106,19 @@ async def test_get_payment_delegates_to_session_get():
 
     assert result is payment
     session.get.assert_awaited_once_with(Payment, payment.id)
+
+
+async def test_create_payment_rejects_unsafe_webhook_url_and_does_not_persist():
+    session = _mock_session(None)
+    request = PaymentCreateRequest(
+        amount="10.00", currency="USD", webhook_url="http://127.0.0.1/hook"
+    )
+
+    try:
+        await PaymentService(session).create_payment("key-5", request)
+        raise AssertionError("expected UnsafeWebhookURLError")
+    except UnsafeWebhookURLError:
+        pass
+
+    session.add.assert_not_called()
+    session.commit.assert_not_called()

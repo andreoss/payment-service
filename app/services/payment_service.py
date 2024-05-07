@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import OutboxEvent, Payment
 from app.schemas import PaymentCreateRequest
+from app.url_safety import ensure_webhook_url_is_safe
 
 
 class PaymentService:
@@ -16,6 +17,8 @@ class PaymentService:
         existing = await self._get_by_idempotency_key(idempotency_key)
         if existing is not None:
             return existing
+
+        await ensure_webhook_url_is_safe(str(data.webhook_url))
 
         payment = Payment(
             idempotency_key=idempotency_key,

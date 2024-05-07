@@ -17,6 +17,9 @@ class Settings(BaseSettings):
 
     webhook_timeout_seconds: float = 5.0
     webhook_max_attempts: int = 3
+    webhook_allow_private_hosts: bool = False
+
+    debug_endpoints_enabled: bool = False
 
     consumer_max_attempts: int = 3
     consumer_retry_base_delay_ms: int = 2000

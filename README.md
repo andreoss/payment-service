@@ -42,7 +42,9 @@ docker compose run --rm tests pytest --cov=app --cov-report=term-missing
 
 ## Environment variables
 
-See `.env.example`.
+See `.env.example`. `WEBHOOK_ALLOW_PRIVATE_HOSTS` and `DEBUG_ENDPOINTS_ENABLED`
+enabled only for local development (needed for `_debug/webhook-echo`);
+in production keep them disabled (default `false`).
 
 ## Migrations
 
