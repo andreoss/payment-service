@@ -14,6 +14,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
@@ -25,6 +33,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
 
   migrate:
     build:
@@ -36,6 +52,11 @@ services:
       postgres:
         condition: service_healthy
     command: ["alembic", "upgrade", "head"]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
 
   api:
     build:
@@ -57,6 +78,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
 
   consumer:
     build:
@@ -71,6 +100,14 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 128M
 
   tests:
     build:
@@ -94,6 +131,11 @@ services:
         condition: service_started
     profiles:
       - test
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
 
 volumes:
   postgres_data:
