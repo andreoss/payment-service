@@ -37,7 +37,9 @@ async def test_create_and_get_payment_full_flow(api_client, idempotency_key):
     assert events[0]["event"] == f"payment.{data['status']}"
 
 
-async def test_idempotent_replay_returns_same_payment_and_ignores_new_body(api_client, idempotency_key):
+async def test_idempotent_replay_returns_same_payment_and_ignores_new_body(
+    api_client, idempotency_key
+):
     first = await api_client.post(
         "/api/v1/payments",
         headers={"Idempotency-Key": idempotency_key},

@@ -5,6 +5,7 @@ Revises:
 Create Date: 2026-01-01 00:00:00
 
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -29,9 +30,7 @@ def upgrade() -> None:
         sa.Column("currency", currency_enum, nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
         sa.Column("metadata", postgresql.JSONB(), nullable=False, server_default="{}"),
-        sa.Column(
-            "status", payment_status_enum, nullable=False, server_default="pending"
-        ),
+        sa.Column("status", payment_status_enum, nullable=False, server_default="pending"),
         sa.Column("webhook_url", sa.String(length=2048), nullable=False),
         sa.Column(
             "created_at",

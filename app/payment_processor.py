@@ -2,7 +2,7 @@ import asyncio
 import logging
 import random
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.config import settings
 from app.db import async_session_factory
@@ -45,7 +45,7 @@ async def process_payment(payment_id: uuid.UUID) -> None:
             return
 
         payment.status = PaymentStatus.SUCCEEDED if succeeded else PaymentStatus.FAILED
-        payment.processed_at = datetime.now(timezone.utc)
+        payment.processed_at = datetime.now(UTC)
         await session.commit()
         await session.refresh(payment)
 

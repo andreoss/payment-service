@@ -3,6 +3,7 @@ from datetime import timedelta
 from typing import Any
 
 import aio_pika
+from aio_pika.abc import AbstractChannel, AbstractRobustConnection
 
 
 class RabbitPublisher:
@@ -15,8 +16,11 @@ class RabbitPublisher:
 
     def __init__(self, url: str):
         self._url = url
-        self._connection: aio_pika.abc.AbstractRobustConnection | None = None
-        self._channel: aio_pika.abc.AbstractRobustChannel | None = None
+        self._connection: AbstractRobustConnection | None = None
+        # aio-pika types AbstractRobustConnection.channel() as returning the
+        # base AbstractChannel; we only rely on the base interface here, so
+        # no need to assert the (accurate, but unstated) robust subtype.
+        self._channel: AbstractChannel | None = None
 
     async def connect(self) -> None:
         self._connection = await aio_pika.connect_robust(self._url)
@@ -34,7 +38,8 @@ class RabbitPublisher:
         headers: dict[str, Any] | None = None,
         expiration_ms: int | None = None,
     ) -> None:
-        assert self._channel is not None, "RabbitPublisher.connect() must be called first"
+        if self._channel is None:
+            raise RuntimeError("RabbitPublisher.connect() must be called before publish()")
 
         exchange = await self._channel.declare_exchange(
             exchange_name, aio_pika.ExchangeType.DIRECT, durable=True

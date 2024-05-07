@@ -1,6 +1,7 @@
 import asyncio
+import contextlib
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -22,6 +23,17 @@ class OutboxRelay:
     after the broker publish call returns (publisher confirms are enabled),
     so a crash between publish and commit can cause an at-most-once extra
     redelivery, which the consumer handles idempotently.
+
+    A whole batch is committed as one transaction. If publishing fails partway
+    through a batch, every row in it - including ones already published to
+    RabbitMQ earlier in the same loop iteration - stays unmarked and gets
+    republished on the next tick. This is deliberate: committing per-row would
+    release the FOR UPDATE lock on the rest of the batch after the first row,
+    letting a second relay replica pick up rows this instance already has in
+    memory, reintroducing the double-publish race SKIP LOCKED exists to
+    prevent. The batch is kept small (`outbox_batch_size`) to bound how much
+    redundant (but harmless, since processing is idempotent) republishing a
+    partial failure can cause.
     """
 
     def __init__(self, publisher: RabbitPublisher):
@@ -46,12 +58,10 @@ class OutboxRelay:
                 published = 0
 
             if published == 0:
-                try:
+                with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(
                         self._stopping.wait(), timeout=settings.outbox_poll_interval
                     )
-                except asyncio.TimeoutError:
-                    pass
 
     async def _relay_batch(self) -> int:
         async with async_session_factory() as session:
@@ -74,7 +84,7 @@ class OutboxRelay:
                         payload=event.payload,
                         headers={"x-attempt": 1, "event-type": event.event_type},
                     )
-                    event.published_at = datetime.now(timezone.utc)
+                    event.published_at = datetime.now(UTC)
                     logger.info("Published outbox event %s (%s)", event.id, event.event_type)
 
             return len(events)

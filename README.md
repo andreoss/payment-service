@@ -124,8 +124,13 @@ docker compose run --rm tests pytest tests/integration -v
 
 - **Unit tests** (`tests/unit/`) — no network or DB: Pydantic schema
   validation, webhook retry (httpx mocked via `respx`), the branching of
-  `PaymentService.create_payment` (SQLAlchemy session mocked), and the
-  retry/DLQ policy (`app/retry_policy.py`).
+  `PaymentService.create_payment` (SQLAlchemy session mocked), gateway
+  emulation and idempotency in `payment_processor.process_payment` (the
+  session and `send_webhook_notification` mocked), the HTTP layer
+  (`app/api/*`) via `httpx.ASGITransport` with the `get_db_session`
+  dependency overridden — no real FastAPI TestClient/network, but through
+  real routing and response serialization — and the retry/DLQ policy
+  (`app/retry_policy.py`).
 - **Integration tests** (`tests/integration/`) — run against the actually
   running stack (same docker-compose network; the `tests` service reaches
   `api`/`rabbitmq` by container names): the full payment lifecycle from
@@ -139,6 +144,36 @@ For debugging/manually checking webhook delivery without an external service
 there is `GET /api/v1/_debug/webhook-events` — it returns all payloads
 received by the `/_debug/webhook-echo` stub (used both in the tests and in
 the examples below).
+
+### Linters and typing
+
+```bash
+docker compose run --rm --no-deps tests ruff check .              # lint
+docker compose run --rm --no-deps -v "$(pwd):/srv" tests ruff format .  # autoformat (writes to the host)
+docker compose run --rm --no-deps tests mypy app                  # static typing
+```
+
+Configuration lives in `pyproject.toml` (`[tool.ruff]`, `[tool.mypy]`).
+`ruff format` needs the bind mount (`-v`), otherwise formatting is applied
+only inside the one-off container and never reaches the host.
+
+### Test coverage
+
+```bash
+docker compose run --rm tests pytest --cov=app --cov-report=term-missing
+```
+
+The `fail_under = 70` threshold (in `[tool.coverage.report]`) is the real
+result of the whole suite (unit + integration). Business logic (`app/api/*`,
+`app/services/`, `app/schemas.py`, `app/webhook.py`,
+`app/payment_processor.py`, `app/retry_policy.py`) is covered at 95-100%.
+Modules like `app/consumer.py`, `app/main.py` (lifespan),
+`app/outbox_relay.py`, `app/rabbitmq*.py`, `app/db.py` show low coverage in
+this report not because they are untested, but because they actually run in
+other containers (`api`/`consumer`) during the integration tests —
+`coverage.py` cannot see execution in another process. This is a limitation
+of line-coverage tools in a multi-container system, not a gap in the tests:
+the same code is exercised in `tests/integration/` against the live stack.
 
 ## API
 

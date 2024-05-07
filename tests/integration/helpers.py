@@ -29,7 +29,9 @@ def sample_payload(**overrides) -> dict:
     return payload
 
 
-async def wait_for_terminal_status(api_client: httpx.AsyncClient, payment_id: str, timeout: float = 15.0) -> dict:
+async def wait_for_terminal_status(
+    api_client: httpx.AsyncClient, payment_id: str, timeout: float = 15.0
+) -> dict:
     import asyncio
 
     interval = 0.5
@@ -46,7 +48,9 @@ async def wait_for_terminal_status(api_client: httpx.AsyncClient, payment_id: st
 
 
 async def get_queue_message_count(queue_name: str) -> int:
-    async with httpx.AsyncClient(auth=(RABBITMQ_MGMT_USER, RABBITMQ_MGMT_PASSWORD), timeout=10.0) as client:
+    async with httpx.AsyncClient(
+        auth=(RABBITMQ_MGMT_USER, RABBITMQ_MGMT_PASSWORD), timeout=10.0
+    ) as client:
         resp = await client.get(f"{RABBITMQ_MGMT_URL}/api/queues/%2F/{queue_name}")
         resp.raise_for_status()
         return resp.json()["messages"]
@@ -58,7 +62,9 @@ async def publish_raw_message(
     connection = await aio_pika.connect_robust(RABBITMQ_URL)
     try:
         channel = await connection.channel()
-        exchange = await channel.declare_exchange(exchange_name, aio_pika.ExchangeType.DIRECT, durable=True)
+        exchange = await channel.declare_exchange(
+            exchange_name, aio_pika.ExchangeType.DIRECT, durable=True
+        )
         message = aio_pika.Message(
             body=json.dumps(payload).encode("utf-8"),
             headers=headers or {},

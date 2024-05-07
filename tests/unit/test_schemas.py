@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -61,8 +61,8 @@ def test_payment_detail_response_maps_payment_metadata_and_id_aliases():
         payment_metadata={"order": "1"},
         status=PaymentStatus.SUCCEEDED,
         webhook_url="https://example.com/hook",
-        created_at=datetime.now(timezone.utc),
-        processed_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
+        processed_at=datetime.now(UTC),
     )
 
     response = PaymentDetailResponse.model_validate(fake_payment)

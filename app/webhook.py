@@ -24,7 +24,9 @@ class WebhookDeliveryError(Exception):
     stop=stop_after_attempt(settings.webhook_max_attempts),
     wait=wait_exponential(multiplier=1, min=1, max=10),
     retry=retry_if_exception_type(WebhookDeliveryError),
-    before_sleep=before_sleep_log(logger, logging.WARNING),
+    # tenacity's LoggerProtocol is stricter than stdlib logging.Logger's
+    # actual signature; a plain Logger works fine here at runtime.
+    before_sleep=before_sleep_log(logger, logging.WARNING),  # type: ignore[arg-type]
 )
 async def _post_webhook(url: str, payload: dict) -> None:
     async with httpx.AsyncClient(timeout=settings.webhook_timeout_seconds) as client:

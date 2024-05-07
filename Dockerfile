@@ -22,6 +22,6 @@ CMD ["faststream", "run", "app.consumer:app"]
 FROM base AS tests
 COPY requirements-dev.txt .
 RUN pip install --no-cache-dir -r requirements-dev.txt
-COPY pytest.ini .
+COPY pyproject.toml .
 COPY tests ./tests
 CMD ["pytest", "-v"]

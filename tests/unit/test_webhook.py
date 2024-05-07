@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -18,7 +18,7 @@ def _fake_payment(**overrides) -> SimpleNamespace:
         status=PaymentStatus.SUCCEEDED,
         amount=Decimal("10.00"),
         currency=Currency.USD,
-        processed_at=datetime.now(timezone.utc),
+        processed_at=datetime.now(UTC),
         webhook_url=WEBHOOK_URL,
     )
     for key, value in overrides.items():

@@ -54,7 +54,9 @@ async def handle_new_payment(body: dict, message: RabbitMessage) -> None:
     except Exception:
         logger.exception("Processing failed for message %s (attempt %s)", body, attempt)
 
-        decision = decide(attempt, settings.consumer_max_attempts, settings.consumer_retry_base_delay_ms)
+        decision = decide(
+            attempt, settings.consumer_max_attempts, settings.consumer_retry_base_delay_ms
+        )
 
         if decision.action == "dlq":
             logger.error(

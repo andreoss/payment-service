@@ -27,4 +27,6 @@ async def test_poison_message_retries_then_lands_in_dlq():
         if after > before:
             break
 
-    assert after == before + 1, f"expected exactly one new DLQ message, before={before} after={after}"
+    assert (
+        after == before + 1
+    ), f"expected exactly one new DLQ message, before={before} after={after}"
